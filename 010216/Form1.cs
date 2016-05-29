@@ -10,44 +10,99 @@ namespace _010216
     {
         #region Constants
         const int
+            LEVELS = 2,
             MAX_RAYS = 100,
             GAME_HEIGHT = 6,
             GAME_WIDTH = 12,
             COLOR_MIN_VALUE = 63,
             COLOR_MAX_VALUE = 192;
-        enum BLOCK_TYPE
+        enum GAME_STATES
+        {
+            PAUSED = 0,
+            ACTIVE = 1,
+            MENU = 2
+        }
+        enum BLOCK_TYPES
         {
             NORMAL = 1,
-            STATIC = 2,
+            SOLID = 2,
             GLASS = 3,
             PORTAL = 4
         }
-        static Random
+        static readonly Random
             getRandom = new Random(DateTime.Now.Millisecond);
         static readonly Font
             Verdana13 = new Font("Verdana", 13);
         static readonly StringFormat
             TextFormatCenter = new StringFormat();
         static readonly Image
+            iBlockNormal = Properties.Resources.BlockMetal,
+            iBlockSolid = Properties.Resources.BlockStone,
+            iBlockGlass = Properties.Resources.BlockGlass,
+            iEnd = Properties.Resources.End,
+            iEndLaser = Properties.Resources.EndLaser,
             iConsole = Properties.Resources.glassPanelConsole;
         static readonly Size 
             Resolution = Screen.PrimaryScreen.Bounds.Size;
         static readonly Rectangle
             GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100);
+        static readonly Point[]
+            lStartPoint = new Point[LEVELS]
+            {
+                new Point(GAME_RECTANGLE.X + 200, GAME_RECTANGLE.Y + 50),
+                new Point(GAME_RECTANGLE.X + 300, GAME_RECTANGLE.Y + 50)
+            },
+            lDirection = new Point[LEVELS]
+            {
+                new Point(-1, 1),
+                new Point(1, 1)
+            };
+        static readonly Rectangle[]
+            lEndPoint = new Rectangle[LEVELS]
+            {
+                new Rectangle(GAME_RECTANGLE.X + 290, GAME_RECTANGLE.Y + 40, 20, 20),
+                new Rectangle(GAME_RECTANGLE.X + 590, GAME_RECTANGLE.Y + 140, 20, 20)
+            };
         static readonly HatchBrush 
             blockBrush = new HatchBrush(HatchStyle.Trellis, Color.DarkSlateBlue, Color.Black),
             blockBrushTransparent = new HatchBrush(HatchStyle.Trellis, Color.FromArgb(128, 72, 61, 139), Color.FromArgb(128, 0, 0, 0));
         static Timer updateTimer = new Timer();
         #endregion
 
+        class Block
+        {
+            private Rectangle Rectangle;
+            private BLOCK_TYPES Type = BLOCK_TYPES.NORMAL;
+            public Block(Rectangle _Rectangle)
+            {
+                Rectangle = _Rectangle;
+            }
+            public Block(Rectangle _Rectangle, BLOCK_TYPES _Type):this(_Rectangle)
+            {
+                Type = _Type;
+            }
+            public BLOCK_TYPES getType()
+            {
+                return Type;
+            }
+            public void setRectangle(Rectangle _Rectangle)
+            {
+                Rectangle = _Rectangle;
+            }
+            public Rectangle getRectangle()
+            {
+                return Rectangle;
+            }
+        }
+
         class ConsolePrototype
         {
             public Boolean Enabled;
 
-            static private string consoleString;
-            static private string consolePrevString;
-            static private string consoleLog;
-            static private Rectangle CONSOLE_REGION;
+            private string consoleString;
+            private string consolePrevString;
+            private string consoleLog;
+            private Rectangle CONSOLE_REGION;
 
             public string getString() { return consoleString; }
             public string getPrevString() { return consolePrevString; }
@@ -64,7 +119,7 @@ namespace _010216
             public void applyCommand()
             {
                 consoleString = consoleString.Trim();
-                if (consoleLog == "Unknown command.")
+                if (consoleLog == "Unknown command." || consoleLog == "Still unknown command.")
                     consoleLog = "Still unknown command.";
                 else
                     consoleLog = "Unknown command.";
@@ -117,26 +172,40 @@ namespace _010216
                 Point next = Start;
             Mark:
                 next.Offset(Direction);
-            if (!GAME_RECTANGLE.Contains(next))
-                Ends = true;
-            else
-            {
-                Ends = false;
-                if (NOBLOCK.IsVisible(next))
-                    goto Mark;
-            }
-            End = next;
+                if (!GAME_RECTANGLE.Contains(next) || SolidBlocks.IsVisible(next))
+                    Ends = true;
+                else
+                {
+                    Ends = false;
+                    if (EmptySpace.IsVisible(next))
+                        goto Mark;
+                }
+                End = next;
+                    if (lEndPoint[CurrentLevel].Contains(End) && !ChangingLevel)
+                    {
+                        ChangingLevel = true;
+                        if (CurrentLevel < LEVELS - 1)
+                        {
+                            //CurrentLevel++;
+                            //Setup();
+                            GameState = GAME_STATES.PAUSED;
+                        }
+                        else
+                            Application.Exit();
+                    }
+                    else
+                        ChangingLevel = false;
             }
         }
 
         class BackGroundColor
         {
-            public int R;
-            public int G;
-            public int B;
-            public int RFactor = getRandom.Next(-1, 2);
-            public int GFactor = getRandom.Next(-1, 2);
-            public int BFactor = getRandom.Next(-1, 2);
+            private int R;
+            private int G;
+            private int B;
+            private int RFactor = getRandom.Next(-1, 2);
+            private int GFactor = getRandom.Next(-1, 2);
+            private int BFactor = getRandom.Next(-1, 2);
             public BackGroundColor(int _R, int _G, int _B)
             {
                 R = _R;
@@ -198,55 +267,61 @@ namespace _010216
 
         #region Variables
         static Region
-            NOBLOCK = new Region(GAME_RECTANGLE);
+            EmptySpace = new Region(GAME_RECTANGLE),
+            SolidBlocks = new Region();
         static string 
             QuartzFont = "Quartz MS";
         static Boolean
+            ChangingLevel = false,
             ShowDI = false;
-        static List<Rectangle>
-            RectList = new List<Rectangle>();
+        static List<Block>
+            Blocks = new List<Block>();
         static List<Laser> 
             Lasers = new List<Laser>();
         static BackGroundColor
             BGColor;
-        ConsolePrototype
+        static ConsolePrototype
             Console = new ConsolePrototype();
-        int
+        static int
             lastTick, lastFrameRate, frameRate,
-            SelectedRectangle = -1;
-        Point
+            CurrentLevel = 0, SelectedBlock = -1;
+        static Point
             MoveStartPosition = new Point();
-
-        int[,] map = new int[GAME_HEIGHT, GAME_WIDTH]
-        {
-            { 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1},
-            { 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
-            { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1},
-            { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1},
-            { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-            { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1},
-        };
+        static long Time = DateTime.Now.Ticks;
+        static GAME_STATES
+            GameState;
         #endregion
+
+        static int[, ,] map = new int[LEVELS, GAME_HEIGHT, GAME_WIDTH]
+        {
+            {
+                { 1, 0, 2, 0, 0, 1, 0, 0, 1, 0, 0, 1},
+                { 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1},
+                { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1},
+                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1}
+            },
+            {
+                { 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1},
+                { 1, 0, 2, 1, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1},
+                { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1},
+                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1}
+            }
+        };
 
         public Form1()
         {
             InitializeComponent();
+            GameState = GAME_STATES.ACTIVE;
             TextFormatCenter.Alignment = StringAlignment.Center;
-
-            for (int q = 0; q < GAME_HEIGHT; ++q)
-                for (int w = 0; w < GAME_WIDTH; ++w)
-                    switch (map[q, w])
-                    {
-                        case (int)BLOCK_TYPE.NORMAL:
-                            RectList.Add(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100));
-                            break;
-                    }
             BGColor = new BackGroundColor(240, 254, 254);
-            Lasers.Add(new Laser(GAME_RECTANGLE.X + 100, GAME_RECTANGLE.Y + 150, 1, 1));
-            Lasers[0].Ends = false;
             foreach (FontFamily Family in FontFamily.Families)
                 if (Family.Name.ToUpper() == "QUARTZ" || Family.Name.ToUpper() == "QUARTZ MS")
                     QuartzFont = Family.Name;
+            Setup();
             this.Size = Resolution;
             this.Paint += new PaintEventHandler(pDraw);
             this.KeyDown += new KeyEventHandler(pKeyDown);
@@ -259,6 +334,25 @@ namespace _010216
             updateTimer.Start();
         }
 
+        static void Setup()
+        {
+            Lasers.Clear();
+            Blocks.Clear();
+            for (int q = 0; q < GAME_HEIGHT; ++q)
+                for (int w = 0; w < GAME_WIDTH; ++w)
+                    switch (map[CurrentLevel, q, w])
+                    {
+                        case (int)BLOCK_TYPES.NORMAL:
+                            Blocks.Add(new Block(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100)));
+                            break;
+                        case (int)BLOCK_TYPES.SOLID:
+                            Blocks.Add(new Block(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100), BLOCK_TYPES.SOLID));
+                            break;
+                    }
+            Lasers.Add(new Laser(lStartPoint[CurrentLevel], lDirection[CurrentLevel]));
+            Lasers[0].Ends = false;
+        }
+
         void pKeyUp(object sender, KeyEventArgs e)
         {
             if (e.KeyData == Keys.Tab)
@@ -268,11 +362,7 @@ namespace _010216
                 {
                     Console.Enabled = false;
                     if (!String.IsNullOrEmpty(Console.getString()))
-                    {
-                        string temp = Console.getString();
-                        temp = temp.Remove(0);
-                        Console.setString(temp);
-                    }
+                        Console.setString("");
                 }
         }
 
@@ -285,25 +375,16 @@ namespace _010216
                     break;
             }
             if (Console.Enabled)
-            #region Console
+                #region Console
             {
                 if ((e.KeyData >= Keys.A && e.KeyData <= Keys.Z) ||
                     (e.KeyData >= Keys.D0 && e.KeyData <= Keys.D9))
-                {
-                    string temp = Console.getString();
-                    temp += (char)e.KeyValue;
-                    Console.setString(temp);
-                }
+                        Console.setString(Console.getString() + (char)e.KeyValue);
                 switch (e.KeyData)
                 {
                     case Keys.Back:
                         if (Console.getLength() > 0)
-                        {
-                            string temp = Console.getString();
-                            int tempint = Console.getLength() - 1;
-                            temp = temp.Substring(0, tempint);
-                            Console.setString(temp);
-                        }
+                            Console.setString(Console.getString().Remove(Console.getLength() - 1, 1));
                         break;
                     case Keys.Enter:
                         if (!String.IsNullOrEmpty(Console.getString()))
@@ -311,97 +392,147 @@ namespace _010216
                         break;
                 }
             }
-            #endregion
+                #endregion
+            else
+                switch (e.KeyData)
+                {
+                    case Keys.P:
+                        if (GameState == GAME_STATES.PAUSED)
+                            GameState = GAME_STATES.ACTIVE;
+                        else
+                            GameState = GAME_STATES.PAUSED;
+                        break;
+                }
         }
 
         void pMouseDown(object sender, MouseEventArgs e)
         {
-            for (int q = 0; q < RectList.Count; ++q)
-                if (RectList[q].Contains(e.Location))
-                {
-                    SelectedRectangle = q;
-                    MoveStartPosition = new Point(RectList[q].X, RectList[q].Y);
-                }
+            switch (GameState)
+            {
+                case GAME_STATES.ACTIVE:
+                    foreach (Block TB in Blocks)
+                        if (TB.getType() != BLOCK_TYPES.SOLID && TB.getRectangle().Contains(e.Location))
+                        {
+                            SelectedBlock = Blocks.IndexOf(TB);
+                            MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
+                        }
+                    break;
+            }
         }
 
         void pMouseUp(object sender, MouseEventArgs e)
         {
-            if (SelectedRectangle > -1)
-                if (!GAME_RECTANGLE.Contains(e.Location))
-                    RectList[SelectedRectangle] = new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100);
-                else
-                    for (int q = 0; q < RectList.Count; ++q)
-                    {
-                        Point TP = new Point(GAME_RECTANGLE.X + ((e.X - GAME_RECTANGLE.X) / 100) * 100, GAME_RECTANGLE.Y + ((e.Y - GAME_RECTANGLE.Y) / 100) * 100);
-                        if (RectList[q].Contains(TP.X + 5, TP.Y + 5) && q != SelectedRectangle)
-                        {
-                            RectList[SelectedRectangle] = new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100);
-                            break;
-                        }
+            switch (GameState)
+            {
+                case GAME_STATES.ACTIVE:
+                    if (SelectedBlock > -1)
+                        if (!GAME_RECTANGLE.Contains(e.Location))
+                            Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
                         else
-                            RectList[SelectedRectangle] = new Rectangle(TP.X, TP.Y, 100, 100);
-                    }
-            SelectedRectangle = -1;
+                            foreach (Block TB in Blocks)
+                            {
+                                Point TP = new Point(GAME_RECTANGLE.X + ((e.X - GAME_RECTANGLE.X) / 100) * 100, GAME_RECTANGLE.Y + ((e.Y - GAME_RECTANGLE.Y) / 100) * 100);
+                                if (TB.getRectangle().Contains(TP.X + 5, TP.Y + 5) && Blocks.IndexOf(TB) != SelectedBlock)
+                                {
+                                    Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
+                                    break;
+                                }
+                                else
+                                    Blocks[SelectedBlock].setRectangle(new Rectangle(TP.X, TP.Y, 100, 100));
+                            }
+                    SelectedBlock = -1;
+                    break;
+            }
         }
 
         void pMouseMove(object sender, MouseEventArgs e)
         {
-            if (SelectedRectangle > -1)
+            switch (GameState)
             {
-                RectList[SelectedRectangle] = new Rectangle(e.X - 50, e.Y - 50, 100, 100);
+                case GAME_STATES.ACTIVE:
+                    if (SelectedBlock > -1)
+                    {
+                        Blocks[SelectedBlock].setRectangle(new Rectangle(e.X - 50, e.Y - 50, 100, 100));
+                    }
+                    break;
             }
         }
 
         void pUpdate(object sender, EventArgs e)
         {
+            Time = DateTime.Now.Ticks;
             BGColor.Increase(true);
             this.BackColor = BGColor.Set();
             if (getRandom.Next(50) == 0)
                 BGColor.randomFactors();
-            NOBLOCK = new Region(GAME_RECTANGLE);
-            foreach (Rectangle TR in RectList)
-                NOBLOCK.Exclude(TR);
-            Lasers.RemoveRange(1, Lasers.Count - 1);
-            foreach (Laser TL in Lasers)
-                TL.Refresh();
-            if (Lasers.Count < MAX_RAYS)
-                for (int q = 0; q < MAX_RAYS; ++q)
-                {
-                    if (!Lasers[q].Ends)
-                        Lasers.Add(new Laser(Lasers[q].End, Direct(Lasers[q].Direction)));
-                    else
-                        break;
-                }
-            Invalidate();
+            switch (GameState)
+            {
+                case GAME_STATES.ACTIVE:
+                    EmptySpace = new Region(GAME_RECTANGLE);
+                    SolidBlocks.MakeEmpty();
+                    foreach (Block TB in Blocks)
+                    {
+                        if (Blocks.IndexOf(TB) != SelectedBlock)
+                        {
+                            EmptySpace.Exclude(TB.getRectangle());
+                            if (TB.getType() == BLOCK_TYPES.SOLID)
+                                SolidBlocks.Union(TB.getRectangle());
+                        }
+                    }
+                    Lasers.RemoveRange(1, Lasers.Count - 1);
+                    foreach (Laser TL in Lasers)
+                        TL.Refresh();
+                    if (Lasers.Count < MAX_RAYS && Lasers.Count > 0)
+                        for (int q = 0; q < Lasers.Count; ++q)
+                        {
+                            if (!Lasers[q].Ends)
+                                Lasers.Add(new Laser(Lasers[q].End, Direct(Lasers[q].Direction)));
+                            else
+                                break;
+                        }
+                    break;
+            }
+                    Invalidate();
         }
 
         void pDraw(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             g.FillRectangle(Brushes.SlateGray, GAME_RECTANGLE);
-            for (int q = 0; q < RectList.Count; ++q)
-            {
-                g.FillRectangle(q != SelectedRectangle ? blockBrush : blockBrushTransparent, RectList[q]);
-                if (q != SelectedRectangle) g.DrawRectangle(new Pen(Color.FromArgb(82, 96, 152)), RectList[q].X, RectList[q].Y, 100, 100);
-            }
             Pen RayPen = new Pen(Color.Red, 6);
-            RayPen.EndCap = RayPen.StartCap = LineCap.Flat;
-            for (int q = 0; q < Lasers.Count; ++q)
+            RayPen.EndCap = RayPen.StartCap = LineCap.Triangle;
+            foreach (Block TB in Blocks)
+                switch (TB.getType())
+                {
+                    case BLOCK_TYPES.NORMAL:
+                        g.DrawImage(iBlockNormal, TB.getRectangle());
+                        break;
+                    case BLOCK_TYPES.SOLID:
+                        g.DrawImage(iBlockSolid, TB.getRectangle());
+                        break;
+                }
+            if (GameState != GAME_STATES.MENU)
             {
-                g.DrawLine(RayPen, Lasers[q].Start, Lasers[q].End);
-                //g.DrawString(q.ToString(), Verdana13, Brushes.Black, Lasers[q].Start);
+                foreach (Laser TL in Lasers)
+                    g.DrawLine(RayPen, TL.Start, TL.End);
+                if (SelectedBlock > -1)
+                    g.DrawImage(Blocks[SelectedBlock].getType() == BLOCK_TYPES.NORMAL ? iBlockNormal : iBlockSolid, Blocks[SelectedBlock].getRectangle());
             }
+            g.DrawImage(ChangingLevel ? iEndLaser : iEnd, lEndPoint[CurrentLevel]);
             if (ShowDI)
-            #region Debug Information
+                #region Debug Information
             {
-                string output = "FPS: " + CalculateFrameRate().ToString() + "\nActual Laser Count: " + Lasers.Count + "\n";
-                //for (int q = 0; q < Lasers.Count; ++q )
-                //    output += Lasers[q].Start.ToString() + Lasers[q].End.ToString() + Lasers[q].Direction.ToString() + Lasers[q].Ends.ToString() + "\n";
+                string output = "FPS: " + CalculateFrameRate().ToString() +
+                    "\nGame State: " + GameState.ToString() + 
+                    "\nLevel: " + (CurrentLevel + 1).ToString() + 
+                    "\nChanging: " + ChangingLevel.ToString() +
+                    "\nActual Laser Count: " + Lasers.Count +
+                    "\nTime: " + (Time / 10000000).ToString();
                 g.DrawString(output, new Font(QuartzFont, 14), Brushes.Black, 0, Console.Enabled ? 50 : 0);
             }
-            #endregion
+                #endregion
             if (Console.Enabled)
-            #region Console
+                #region Console
             {
                 g.DrawString("Console: ", Verdana13, Brushes.Black, 3, 25);
                 g.DrawString(Console.getLog(), Verdana13, Brushes.Black, Console.getRegion().X + 3, Console.getRegion().Y);
@@ -409,7 +540,7 @@ namespace _010216
                 g.DrawString(Console.getString(), Verdana13, Brushes.Black, new Rectangle(81, 25, 460, 20));
                 g.DrawImage(iConsole, Console.getRegion());
             }
-            #endregion
+                #endregion
         }
 
         static Point Direct(Point Init)

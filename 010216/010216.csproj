@@ -81,6 +81,21 @@
   <ItemGroup>
     <None Include="Resources\glassPanelConsole.png" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\BlockGlass.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\BlockMetal.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\BlockStone.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\End.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\EndLaser.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
