@@ -11,7 +11,7 @@ namespace _010216
         #region Constants
         const int
             LEVELS = 2,
-            MAX_RAYS = 100,
+            MAX_RAYS = 32,
             GAME_HEIGHT = 6,
             GAME_WIDTH = 12,
             COLOR_MIN_VALUE = 63,
@@ -27,9 +27,9 @@ namespace _010216
             NORMAL = 1,
             SOLID = 2,
             GLASS = 3,
-            PORTAL = 4,
+            DIAMOND = 4,
             NOBLOCK = 5,
-            DIAMOND = 6
+            PORTAL = 6
         }
         static readonly string[]
             LevelNames = new string[LEVELS]
@@ -43,6 +43,8 @@ namespace _010216
             Verdana13 = new Font("Verdana", 13);
         static readonly StringFormat
             TextFormatCenter = new StringFormat();
+        static readonly Pen
+            RayPen = new Pen(Color.Red, 6);
         static readonly Image
             iBlockNormal = Properties.Resources.BlockMetal,
             iBlockSolid = Properties.Resources.BlockStone,
@@ -50,6 +52,9 @@ namespace _010216
             iEnd = Properties.Resources.End,
             iEndLaser = Properties.Resources.EndLaser,
             iGlassPanelCorners = Properties.Resources.glassPanelCorners,
+            iGlassPanelCornersFill = Properties.Resources.glassPanelCornersFill,
+            iPlaceForBlock = Properties.Resources.BlockCanPlace,
+            iEmptySpace = Properties.Resources.BlockCantPlace,
             iConsole = Properties.Resources.glassPanelConsole;
         static readonly Size
             Resolution = Screen.PrimaryScreen.Bounds.Size;
@@ -183,6 +188,12 @@ namespace _010216
                 Point next = Start;
             Mark:
                 next.Offset(Direction);
+                if (lEndPoint[CurrentLevel].Contains(next) && !ChangingLevel)
+                {
+                    ChangingLevel = true;
+                    LevelPassageTime = (Time - StartupTime) / 100f;
+                    GameState = GAME_STATES.PAUSED;
+                }
                 if (!GAME_RECTANGLE.Contains(next) || SolidBlocks.IsVisible(next))
                     Ends = true;
                 else
@@ -192,14 +203,6 @@ namespace _010216
                         goto Mark;
                 }
                 End = next;
-                    if (lEndPoint[CurrentLevel].Contains(End) && !ChangingLevel)
-                    {
-                        ChangingLevel = true;
-                        LevelPassageTime = (Time - StartupTime) / 100f;
-                        GameState = GAME_STATES.PAUSED;
-                    }
-                    else
-                        ChangingLevel = false;
             }
         }
 
@@ -273,6 +276,7 @@ namespace _010216
         #region Variables
         static Region
             EmptySpace = new Region(GAME_RECTANGLE),
+            GameRegion = new Region(GAME_RECTANGLE),
             SolidBlocks = new Region();
         static string 
             QuartzFont = "Quartz MS";
@@ -308,14 +312,14 @@ namespace _010216
                 { 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0},
                 { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0},
                 { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0},
-                { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 0, 0, 5, 0, 0, 0, 0, 0, 1, 0, 1},
                 { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1}
             },
             {
                 { 0, 0, 2, 0, 0, 1, 0, 0, 1, 0, 0, 0},
                 { 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 1},
                 { 0, 0, 0, 0, 1, 0, 2, 1, 0, 0, 0, 0},
-                { 0, 0, 0, 1, 0, 1, 1, 2, 0, 0, 1, 1},
+                { 0, 0, 0, 1, 0, 1, 1, 2, 0, 0, 5, 5},
                 { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
                 { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0}
             }
@@ -326,7 +330,8 @@ namespace _010216
             InitializeComponent();
             GameState = GAME_STATES.ACTIVE;
             TextFormatCenter.Alignment = StringAlignment.Center;
-            BGColor = new BackGroundColor(240, 254, 254);
+            RayPen.EndCap = RayPen.StartCap = LineCap.Triangle;
+            BGColor = new BackGroundColor(240, 253, 253);
             foreach (FontFamily Family in FontFamily.Families)
                 if (Family.Name.ToUpper() == "QUARTZ" || Family.Name.ToUpper() == "QUARTZ MS")
                     QuartzFont = Family.Name;
@@ -345,6 +350,7 @@ namespace _010216
 
         static void Setup()
         {
+            GameRegion = new Region(GAME_RECTANGLE);
             Lasers.Clear();
             Blocks.Clear();
             for (int q = 0; q < GAME_HEIGHT; ++q)
@@ -357,7 +363,13 @@ namespace _010216
                         case (int)BLOCK_TYPES.SOLID:
                             Blocks.Add(new Block(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100), BLOCK_TYPES.SOLID));
                             break;
+                        case (int)BLOCK_TYPES.NOBLOCK:
+                            Blocks.Add(new Block(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100), BLOCK_TYPES.NOBLOCK));
+                            break;
                     }
+            foreach (Block TB in Blocks)
+                if (TB.getType() == BLOCK_TYPES.NOBLOCK)
+                    GameRegion.Exclude(TB.getRectangle());
             Lasers.Add(new Laser(lStartPoint[CurrentLevel], lDirection[CurrentLevel]));
             Lasers[0].Ends = false;
         }
@@ -425,6 +437,7 @@ namespace _010216
                     StartupTime = DateTime.Now.Ticks / 100000;
                     CurrentLevel++;
                     Setup();
+                    ChangingLevel = false;
                     GameState = GAME_STATES.ACTIVE;
                 }
                 else
@@ -437,7 +450,7 @@ namespace _010216
             {
                 case GAME_STATES.ACTIVE:
                     foreach (Block TB in Blocks)
-                        if (TB.getType() != BLOCK_TYPES.SOLID && TB.getRectangle().Contains(e.Location))
+                        if (TB.getType() == BLOCK_TYPES.NORMAL && TB.getRectangle().Contains(e.Location))
                         {
                             SelectedBlock = Blocks.IndexOf(TB);
                             MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
@@ -502,7 +515,8 @@ namespace _010216
                     {
                         if (Blocks.IndexOf(TB) != SelectedBlock)
                         {
-                            EmptySpace.Exclude(TB.getRectangle());
+                            if (TB.getType() != BLOCK_TYPES.NOBLOCK)
+                                EmptySpace.Exclude(TB.getRectangle());
                             if (TB.getType() == BLOCK_TYPES.SOLID)
                                 SolidBlocks.Union(TB.getRectangle());
                         }
@@ -510,10 +524,10 @@ namespace _010216
                     Lasers.RemoveRange(1, Lasers.Count - 1);
                     foreach (Laser TL in Lasers)
                         TL.Refresh();
-                    if (Lasers.Count < MAX_RAYS && Lasers.Count > 0)
+                    if (Lasers.Count > 0)
                         for (int q = 0; q < Lasers.Count; ++q)
                         {
-                            if (!Lasers[q].Ends)
+                            if (!Lasers[q].Ends && Lasers.Count < MAX_RAYS)
                                 Lasers.Add(new Laser(Lasers[q].End, Direct(Lasers[q].Direction)));
                             else
                                 break;
@@ -526,9 +540,10 @@ namespace _010216
         void pDraw(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.FillRectangle(Brushes.SlateGray, GAME_RECTANGLE);
-            Pen RayPen = new Pen(Color.Red, 6);
-            RayPen.EndCap = RayPen.StartCap = LineCap.Triangle;
+            //g.FillRegion(Brushes.SlateGray, GameRegion);
+            for (int q = 0; q < GAME_HEIGHT; ++q)
+                for (int w = 0; w < GAME_WIDTH; ++w)
+                    g.DrawImage(map[CurrentLevel, q, w] != 5 ? iPlaceForBlock : iEmptySpace, GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q);
             foreach (Block TB in Blocks)
                 switch (TB.getType())
                 {
@@ -550,11 +565,11 @@ namespace _010216
             if (ChangingLevel)
             {
                 g.DrawImage(iGlassPanelCorners, NEXT_LEVEL_RECTANGLE);
-                g.DrawImage(iGlassPanelCorners, YES_RECTANGLE);
+                g.DrawImage(iGlassPanelCornersFill, YES_RECTANGLE);
                 g.DrawString("Congratulations, you pass a " + LevelNames[CurrentLevel] + " level over " + LevelPassageTime + " sec.", new Font("Kristen ITC", 13), Brushes.Black,
                     new Rectangle(NEXT_LEVEL_RECTANGLE.X + 5, NEXT_LEVEL_RECTANGLE.Y + 5, NEXT_LEVEL_RECTANGLE.Width - 10, NEXT_LEVEL_RECTANGLE.Height - 10), TextFormatCenter);
                 g.DrawString(CurrentLevel < LEVELS - 1? "Next level" : "Exit", new Font("Kristen ITC", 15), Brushes.Black, 
-                    new Rectangle(YES_RECTANGLE.X + 3, YES_RECTANGLE.Y + 3, YES_RECTANGLE.Width - 6, YES_RECTANGLE.Height - 6), TextFormatCenter);
+                    new Rectangle(YES_RECTANGLE.X + 3, YES_RECTANGLE.Y + 2, YES_RECTANGLE.Width - 6, YES_RECTANGLE.Height - 5), TextFormatCenter);
             }
             if (ShowDI)
                 #region Debug Information

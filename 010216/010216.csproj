@@ -100,7 +100,13 @@
     <None Include="Resources\glassPanelCorners.png" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\glassPanelProjection.png" />
+    <None Include="Resources\ForBlock.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\ForBlock2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glassPanelCornersFill.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
