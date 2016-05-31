@@ -27,8 +27,16 @@ namespace _010216
             NORMAL = 1,
             SOLID = 2,
             GLASS = 3,
-            PORTAL = 4
+            PORTAL = 4,
+            NOBLOCK = 5,
+            DIAMOND = 6
         }
+        static readonly string[]
+            LevelNames = new string[LEVELS]
+            {
+                "first",
+                "last"
+            };
         static readonly Random
             getRandom = new Random(DateTime.Now.Millisecond);
         static readonly Font
@@ -41,11 +49,14 @@ namespace _010216
             iBlockGlass = Properties.Resources.BlockGlass,
             iEnd = Properties.Resources.End,
             iEndLaser = Properties.Resources.EndLaser,
+            iGlassPanelCorners = Properties.Resources.glassPanelCorners,
             iConsole = Properties.Resources.glassPanelConsole;
-        static readonly Size 
+        static readonly Size
             Resolution = Screen.PrimaryScreen.Bounds.Size;
         static readonly Rectangle
-            GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100);
+            NEXT_LEVEL_RECTANGLE = new Rectangle(Resolution.Width / 2 - 150, Resolution.Height / 2 - 50, 300, 100),
+            YES_RECTANGLE = new Rectangle(NEXT_LEVEL_RECTANGLE.X + 90, NEXT_LEVEL_RECTANGLE.Y + 55, 120, 30),
+            GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, 0 + (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100);
         static readonly Point[]
             lStartPoint = new Point[LEVELS]
             {
@@ -184,14 +195,8 @@ namespace _010216
                     if (lEndPoint[CurrentLevel].Contains(End) && !ChangingLevel)
                     {
                         ChangingLevel = true;
-                        if (CurrentLevel < LEVELS - 1)
-                        {
-                            //CurrentLevel++;
-                            //Setup();
-                            GameState = GAME_STATES.PAUSED;
-                        }
-                        else
-                            Application.Exit();
+                        LevelPassageTime = (Time - StartupTime) / 100f;
+                        GameState = GAME_STATES.PAUSED;
                     }
                     else
                         ChangingLevel = false;
@@ -287,7 +292,11 @@ namespace _010216
             CurrentLevel = 0, SelectedBlock = -1;
         static Point
             MoveStartPosition = new Point();
-        static long Time = DateTime.Now.Ticks;
+        static long 
+            StartupTime = DateTime.Now.Ticks / 100000,
+            Time = DateTime.Now.Ticks / 100000;
+        static double
+            LevelPassageTime = 0f;
         static GAME_STATES
             GameState;
         #endregion
@@ -296,19 +305,19 @@ namespace _010216
         {
             {
                 { 1, 0, 2, 0, 0, 1, 0, 0, 1, 0, 0, 1},
-                { 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1},
-                { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1},
-                { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1},
-                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                { 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0},
+                { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0},
+                { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0},
+                { 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
                 { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1}
             },
             {
-                { 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1},
-                { 1, 0, 2, 1, 0, 0, 0, 0, 0, 1, 0, 1},
-                { 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1},
-                { 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1},
-                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-                { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1}
+                { 0, 0, 2, 0, 0, 1, 0, 0, 1, 0, 0, 0},
+                { 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 1},
+                { 0, 0, 0, 0, 1, 0, 2, 1, 0, 0, 0, 0},
+                { 0, 0, 0, 1, 0, 1, 1, 2, 0, 0, 1, 1},
+                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+                { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0}
             }
         };
 
@@ -368,6 +377,8 @@ namespace _010216
 
         void pKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.KeyData == Keys.Enter)
+                NextLevelTransition();
             switch (e.KeyData)
             {
                 case Keys.Escape:
@@ -397,12 +408,27 @@ namespace _010216
                 switch (e.KeyData)
                 {
                     case Keys.P:
-                        if (GameState == GAME_STATES.PAUSED)
-                            GameState = GAME_STATES.ACTIVE;
-                        else
-                            GameState = GAME_STATES.PAUSED;
+                        if (!ChangingLevel)
+                            if (GameState == GAME_STATES.PAUSED)
+                                GameState = GAME_STATES.ACTIVE;
+                            else
+                                GameState = GAME_STATES.PAUSED;
                         break;
                 }
+        }
+
+        static void NextLevelTransition()
+        {
+            if (ChangingLevel)
+                if (CurrentLevel < LEVELS - 1)
+                {
+                    StartupTime = DateTime.Now.Ticks / 100000;
+                    CurrentLevel++;
+                    Setup();
+                    GameState = GAME_STATES.ACTIVE;
+                }
+                else
+                    Application.Exit();
         }
 
         void pMouseDown(object sender, MouseEventArgs e)
@@ -422,6 +448,8 @@ namespace _010216
 
         void pMouseUp(object sender, MouseEventArgs e)
         {
+            if (YES_RECTANGLE.Contains(e.Location))
+                NextLevelTransition();
             switch (GameState)
             {
                 case GAME_STATES.ACTIVE:
@@ -460,7 +488,7 @@ namespace _010216
 
         void pUpdate(object sender, EventArgs e)
         {
-            Time = DateTime.Now.Ticks;
+            Time = DateTime.Now.Ticks / 100000;
             BGColor.Increase(true);
             this.BackColor = BGColor.Set();
             if (getRandom.Next(50) == 0)
@@ -519,6 +547,15 @@ namespace _010216
                     g.DrawImage(Blocks[SelectedBlock].getType() == BLOCK_TYPES.NORMAL ? iBlockNormal : iBlockSolid, Blocks[SelectedBlock].getRectangle());
             }
             g.DrawImage(ChangingLevel ? iEndLaser : iEnd, lEndPoint[CurrentLevel]);
+            if (ChangingLevel)
+            {
+                g.DrawImage(iGlassPanelCorners, NEXT_LEVEL_RECTANGLE);
+                g.DrawImage(iGlassPanelCorners, YES_RECTANGLE);
+                g.DrawString("Congratulations, you pass a " + LevelNames[CurrentLevel] + " level over " + LevelPassageTime + " sec.", new Font("Kristen ITC", 13), Brushes.Black,
+                    new Rectangle(NEXT_LEVEL_RECTANGLE.X + 5, NEXT_LEVEL_RECTANGLE.Y + 5, NEXT_LEVEL_RECTANGLE.Width - 10, NEXT_LEVEL_RECTANGLE.Height - 10), TextFormatCenter);
+                g.DrawString(CurrentLevel < LEVELS - 1? "Next level" : "Exit", new Font("Kristen ITC", 15), Brushes.Black, 
+                    new Rectangle(YES_RECTANGLE.X + 3, YES_RECTANGLE.Y + 3, YES_RECTANGLE.Width - 6, YES_RECTANGLE.Height - 6), TextFormatCenter);
+            }
             if (ShowDI)
                 #region Debug Information
             {
@@ -527,7 +564,8 @@ namespace _010216
                     "\nLevel: " + (CurrentLevel + 1).ToString() + 
                     "\nChanging: " + ChangingLevel.ToString() +
                     "\nActual Laser Count: " + Lasers.Count +
-                    "\nTime: " + (Time / 10000000).ToString();
+                    "\nStartup: " + StartupTime.ToString() + 
+                    "\nTime: " + Time.ToString();
                 g.DrawString(output, new Font(QuartzFont, 14), Brushes.Black, 0, Console.Enabled ? 50 : 0);
             }
                 #endregion
