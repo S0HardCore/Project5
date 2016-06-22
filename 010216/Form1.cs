@@ -20,7 +20,8 @@ namespace _010216
         {
             PAUSED = 0,
             ACTIVE = 1,
-            MENU = 2
+            MENU = 2,
+            EDITOR = 3
         }
         enum BLOCK_TYPES
         {
@@ -31,6 +32,14 @@ namespace _010216
             NOBLOCK = 5,
             PORTAL = 6
         }
+        enum CONTEXT_MENUS
+        {
+            NONE,
+            REMOVE,
+            CREATEorSETEMPTY,
+            CREATEorFILL,
+            BLOCKTYPES
+        }
         static readonly string[]
             LevelNames = new string[LEVELS]
             {
@@ -40,9 +49,12 @@ namespace _010216
         static readonly Random
             getRandom = new Random(DateTime.Now.Millisecond);
         static readonly Font
+            Rockwell16 = new Font("Rockwell", 16),
+            Rockwell18 = new Font("Rockwell", 18),
             Verdana13 = new Font("Verdana", 13);
         static readonly StringFormat
-            TextFormatCenter = new StringFormat();
+            TextFormatCenterAll = new StringFormat(),
+            TextFormatCenterHor = new StringFormat();
         static readonly Pen
             RayPen = new Pen(Color.Red, 6);
         static readonly Image
@@ -55,12 +67,19 @@ namespace _010216
             iGlassPanelCornersFill = Properties.Resources.glassPanelCornersFill,
             iPlaceForBlock = Properties.Resources.BlockCanPlace,
             iEmptySpace = Properties.Resources.BlockCantPlace,
+            iMenuPanel = Properties.Resources.menuPanel,
+            iGreenButton = Properties.Resources.GreenButton,
+            iYellowButton = Properties.Resources.YellowButton,
             iConsole = Properties.Resources.glassPanelConsole;
         static readonly Size
             Resolution = Screen.PrimaryScreen.Bounds.Size;
         static readonly Rectangle
             NEXT_LEVEL_RECTANGLE = new Rectangle(Resolution.Width / 2 - 150, Resolution.Height / 2 - 50, 300, 100),
             YES_RECTANGLE = new Rectangle(NEXT_LEVEL_RECTANGLE.X + 90, NEXT_LEVEL_RECTANGLE.Y + 55, 120, 30),
+            MENU_RECTANGLE = new Rectangle(Resolution.Width / 2 - 100, Resolution.Height / 2 - 150, 200, 300),
+            CONTINUE_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 25, MENU_RECTANGLE.Y + 25, 150, 50),
+            EDITOR_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 40, MENU_RECTANGLE.Y + 105, 120, 40),
+            EXIT_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 55, MENU_RECTANGLE.Y + 250, 90, 30),
             GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, 0 + (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100);
         static readonly Point[]
             lStartPoint = new Point[LEVELS]
@@ -148,15 +167,14 @@ namespace _010216
                     case "DEBUGINFO":
                     case "DEBUGINFORMATION":
                         if (ShowDI)
-                        {
                             ShowDI = false;
-                            consoleLog = "Debug output is disabled.";
-                        }
                         else
-                        {
                             ShowDI = true;
-                            consoleLog = "Debug output is enabled.";
-                        }
+                        consoleLog = "Debug output is " + (ShowDI ? "enabled." : "disabled");
+                        break;
+                    case "QUIT":
+                    case "EXIT":
+                        Application.Exit();
                         break;
                 }
                 consolePrevString = consoleString;
@@ -303,9 +321,8 @@ namespace _010216
             LevelPassageTime = 0f;
         static GAME_STATES
             GameState;
-        #endregion
 
-        static int[, ,] map = new int[LEVELS, GAME_HEIGHT, GAME_WIDTH]
+        static int[, ,] Map = new int[LEVELS, GAME_HEIGHT, GAME_WIDTH]
         {
             {
                 { 1, 0, 2, 0, 0, 1, 0, 0, 1, 0, 0, 1},
@@ -324,12 +341,24 @@ namespace _010216
                 { 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0}
             }
         };
+        static int[,] EditorMap = new int[GAME_HEIGHT, GAME_WIDTH];
+        static Point
+            ContextPosition = new Point(),
+            EditorStartPoint = new Point(),
+            EditorDirection = new Point();
+        static Rectangle
+            EditorEndPoint = new Rectangle();
+        static CONTEXT_MENUS EditorContextMenu;
+        #endregion
+
+
 
         public Form1()
         {
             InitializeComponent();
             GameState = GAME_STATES.ACTIVE;
-            TextFormatCenter.Alignment = StringAlignment.Center;
+            TextFormatCenterHor.Alignment = StringAlignment.Center;
+            TextFormatCenterAll.LineAlignment = TextFormatCenterAll.Alignment = StringAlignment.Center;
             RayPen.EndCap = RayPen.StartCap = LineCap.Triangle;
             BGColor = new BackGroundColor(240, 253, 253);
             foreach (FontFamily Family in FontFamily.Families)
@@ -355,7 +384,7 @@ namespace _010216
             Blocks.Clear();
             for (int q = 0; q < GAME_HEIGHT; ++q)
                 for (int w = 0; w < GAME_WIDTH; ++w)
-                    switch (map[CurrentLevel, q, w])
+                    switch ((GameState != GAME_STATES.EDITOR ? Map[CurrentLevel, q, w] : EditorMap[q, w]))
                     {
                         case (int)BLOCK_TYPES.NORMAL:
                             Blocks.Add(new Block(new Rectangle(GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q, 100, 100)));
@@ -376,6 +405,25 @@ namespace _010216
 
         void pKeyUp(object sender, KeyEventArgs e)
         {
+            if (GameState == GAME_STATES.EDITOR)
+            {
+                if (e.KeyData == Keys.L)
+                    GameState = GAME_STATES.ACTIVE;
+            }
+            if (GameState == GAME_STATES.MENU)
+                switch(e.KeyData)
+                {
+                    case Keys.C:
+                        GameState = GAME_STATES.ACTIVE;
+                        break;
+                    case Keys.E:
+                        GoToEditorState();
+                        break;
+                    case Keys.Q:
+                        Application.Exit();
+                        break;
+                }
+            else
             if (e.KeyData == Keys.Tab)
                 if (!Console.Enabled)
                     Console.Enabled = true;
@@ -387,15 +435,40 @@ namespace _010216
                 }
         }
 
+        static void GoToEditorState()
+        {
+            GameState = GAME_STATES.EDITOR;
+            EditorDirection = lDirection[CurrentLevel];
+            EditorStartPoint = lStartPoint[CurrentLevel];
+            EditorEndPoint = lEndPoint[CurrentLevel];
+            for (int q = 0; q < GAME_HEIGHT; ++q)
+                for (int w = 0; w < GAME_WIDTH; ++w)
+                    EditorMap[q, w] = Map[CurrentLevel, q, w];
+        }
+
         void pKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyData == Keys.Enter)
-                NextLevelTransition();
-            switch (e.KeyData)
+            if (GameState != GAME_STATES.EDITOR)
             {
-                case Keys.Escape:
-                    Application.Exit();
-                    break;
+                if (e.KeyData == Keys.Enter)
+                {
+                    if (ChangingLevel)
+                        NextLevelTransition();
+                    if (GameState == GAME_STATES.MENU)
+                        GameState = GAME_STATES.ACTIVE;
+                }
+                switch (e.KeyData)
+                {
+                    case Keys.Escape:
+                        if (GameState != GAME_STATES.MENU)
+                        {
+                            Console.Enabled = false;
+                            GameState = GAME_STATES.MENU;
+                        }
+                        else
+                            GameState = GAME_STATES.ACTIVE;
+                        break;
+                }
             }
             if (Console.Enabled)
                 #region Console
@@ -416,17 +489,6 @@ namespace _010216
                 }
             }
                 #endregion
-            else
-                switch (e.KeyData)
-                {
-                    case Keys.P:
-                        if (!ChangingLevel)
-                            if (GameState == GAME_STATES.PAUSED)
-                                GameState = GAME_STATES.ACTIVE;
-                            else
-                                GameState = GAME_STATES.PAUSED;
-                        break;
-                }
         }
 
         static void NextLevelTransition()
@@ -446,50 +508,83 @@ namespace _010216
 
         void pMouseDown(object sender, MouseEventArgs e)
         {
-            switch (GameState)
+            if (GameState == GAME_STATES.EDITOR)
             {
-                case GAME_STATES.ACTIVE:
+                StartMoveBlocks(e);
+                if (e.Button == MouseButtons.Right)
+                {
+                    Boolean BlockHited = false;
                     foreach (Block TB in Blocks)
-                        if (TB.getType() == BLOCK_TYPES.NORMAL && TB.getRectangle().Contains(e.Location))
+                        if (TB.getRectangle().Contains(e.Location))
                         {
-                            SelectedBlock = Blocks.IndexOf(TB);
-                            MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
+                            EditorContextMenu = CONTEXT_MENUS.REMOVE;
+                            BlockHited = true;
+                            break;
                         }
-                    break;
+                    if (!BlockHited)
+                        if (EmptySpace.IsVisible(e.Location))
+                            EditorContextMenu = CONTEXT_MENUS.CREATEorFILL;
+                        else
+                            EditorContextMenu = CONTEXT_MENUS.CREATEorSETEMPTY;
+                    if (EditorContextMenu != CONTEXT_MENUS.NONE)
+                        ContextPosition = e.Location;
+                }
             }
+            else
+                if (GameState == GAME_STATES.ACTIVE)
+                    StartMoveBlocks(e);
+        }
+
+        static void StartMoveBlocks(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                foreach (Block TB in Blocks)
+                    if ((TB.getType() == BLOCK_TYPES.NORMAL || GameState == GAME_STATES.EDITOR) && TB.getRectangle().Contains(e.Location))
+                    {
+                        SelectedBlock = Blocks.IndexOf(TB);
+                        MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
+                    }
         }
 
         void pMouseUp(object sender, MouseEventArgs e)
         {
-            if (YES_RECTANGLE.Contains(e.Location))
+            if (ChangingLevel && YES_RECTANGLE.Contains(e.Location))
                 NextLevelTransition();
-            switch (GameState)
+            if (GameState == GAME_STATES.MENU)
             {
-                case GAME_STATES.ACTIVE:
-                    if (SelectedBlock > -1)
-                        if (!GAME_RECTANGLE.Contains(e.Location))
-                            Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
-                        else
-                            foreach (Block TB in Blocks)
-                            {
-                                Point TP = new Point(GAME_RECTANGLE.X + ((e.X - GAME_RECTANGLE.X) / 100) * 100, GAME_RECTANGLE.Y + ((e.Y - GAME_RECTANGLE.Y) / 100) * 100);
-                                if (TB.getRectangle().Contains(TP.X + 5, TP.Y + 5) && Blocks.IndexOf(TB) != SelectedBlock)
-                                {
-                                    Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
-                                    break;
-                                }
-                                else
-                                    Blocks[SelectedBlock].setRectangle(new Rectangle(TP.X, TP.Y, 100, 100));
-                            }
-                    SelectedBlock = -1;
-                    break;
+                if (EXIT_BUTTON_RECTANGLE.Contains(e.Location))
+                    Application.Exit();
+                else
+                    if (CONTINUE_BUTTON_RECTANGLE.Contains(e.Location))
+                        GameState = GAME_STATES.ACTIVE;
+                    else
+                        if (EDITOR_BUTTON_RECTANGLE.Contains(e.Location))
+                            GoToEditorState();
             }
+            if (SelectedBlock > -1)
+                if (!GAME_RECTANGLE.Contains(e.Location))
+                    Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
+                else
+                    foreach (Block TB in Blocks)
+                    {
+                        Point TP = new Point(GAME_RECTANGLE.X + ((e.X - GAME_RECTANGLE.X) / 100) * 100, GAME_RECTANGLE.Y + ((e.Y - GAME_RECTANGLE.Y) / 100) * 100);
+                        if (TB.getRectangle().Contains(TP.X + 5, TP.Y + 5) && Blocks.IndexOf(TB) != SelectedBlock)
+                        {
+                            Blocks[SelectedBlock].setRectangle(new Rectangle(MoveStartPosition.X, MoveStartPosition.Y, 100, 100));
+                            break;
+                        }
+                        else
+                            Blocks[SelectedBlock].setRectangle(new Rectangle(TP.X, TP.Y, 100, 100));
+                    }
+            SelectedBlock = -1;
         }
 
         void pMouseMove(object sender, MouseEventArgs e)
         {
             switch (GameState)
             {
+                case GAME_STATES.EDITOR:
+                    goto case GAME_STATES.ACTIVE;
                 case GAME_STATES.ACTIVE:
                     if (SelectedBlock > -1)
                     {
@@ -534,16 +629,15 @@ namespace _010216
                         }
                     break;
             }
-                    Invalidate();
+            Invalidate();
         }
 
         void pDraw(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            //g.FillRegion(Brushes.SlateGray, GameRegion);
             for (int q = 0; q < GAME_HEIGHT; ++q)
                 for (int w = 0; w < GAME_WIDTH; ++w)
-                    g.DrawImage(map[CurrentLevel, q, w] != 5 ? iPlaceForBlock : iEmptySpace, GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q);
+                    g.DrawImage(Map[CurrentLevel, q, w] != 5 ? iPlaceForBlock : iEmptySpace, GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q);
             foreach (Block TB in Blocks)
                 switch (TB.getType())
                 {
@@ -554,22 +648,42 @@ namespace _010216
                         g.DrawImage(iBlockSolid, TB.getRectangle());
                         break;
                 }
-            if (GameState != GAME_STATES.MENU)
+            if (GameState != GAME_STATES.EDITOR)
             {
                 foreach (Laser TL in Lasers)
                     g.DrawLine(RayPen, TL.Start, TL.End);
                 if (SelectedBlock > -1)
                     g.DrawImage(Blocks[SelectedBlock].getType() == BLOCK_TYPES.NORMAL ? iBlockNormal : iBlockSolid, Blocks[SelectedBlock].getRectangle());
             }
+            else
+                g.FillEllipse(Brushes.Red, lStartPoint[CurrentLevel].X - 10, lStartPoint[CurrentLevel].Y - 10, 20, 20);
             g.DrawImage(ChangingLevel ? iEndLaser : iEnd, lEndPoint[CurrentLevel]);
+            if (GameState == GAME_STATES.EDITOR && EditorContextMenu != CONTEXT_MENUS.NONE)
+            {
+
+            }
             if (ChangingLevel)
             {
                 g.DrawImage(iGlassPanelCorners, NEXT_LEVEL_RECTANGLE);
                 g.DrawImage(iGlassPanelCornersFill, YES_RECTANGLE);
                 g.DrawString("Congratulations, you pass a " + LevelNames[CurrentLevel] + " level over " + LevelPassageTime + " sec.", new Font("Kristen ITC", 13), Brushes.Black,
-                    new Rectangle(NEXT_LEVEL_RECTANGLE.X + 5, NEXT_LEVEL_RECTANGLE.Y + 5, NEXT_LEVEL_RECTANGLE.Width - 10, NEXT_LEVEL_RECTANGLE.Height - 10), TextFormatCenter);
+                    new Rectangle(NEXT_LEVEL_RECTANGLE.X + 5, NEXT_LEVEL_RECTANGLE.Y + 5, NEXT_LEVEL_RECTANGLE.Width - 10, NEXT_LEVEL_RECTANGLE.Height - 10), TextFormatCenterHor);
                 g.DrawString(CurrentLevel < LEVELS - 1? "Next level" : "Exit", new Font("Kristen ITC", 15), Brushes.Black, 
-                    new Rectangle(YES_RECTANGLE.X + 3, YES_RECTANGLE.Y + 2, YES_RECTANGLE.Width - 6, YES_RECTANGLE.Height - 5), TextFormatCenter);
+                    new Rectangle(YES_RECTANGLE.X + 3, YES_RECTANGLE.Y + 2, YES_RECTANGLE.Width - 6, YES_RECTANGLE.Height - 5), TextFormatCenterHor);
+            }
+            if (GameState == GAME_STATES.MENU)
+            {
+                g.FillRectangle(new SolidBrush(Color.FromArgb(192, 0, 0, 0)), 0, 0, Resolution.Width, Resolution.Height);
+                g.DrawImage(iMenuPanel, MENU_RECTANGLE);
+                g.DrawImage(iYellowButton, EXIT_BUTTON_RECTANGLE);
+                g.DrawImage(iYellowButton, EDITOR_BUTTON_RECTANGLE);
+                g.DrawImage(iGreenButton, CONTINUE_BUTTON_RECTANGLE);
+                g.DrawString("Continue", Rockwell18, Brushes.Black, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("C              ", Rockwell18, Brushes.DarkCyan, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("Editor", Rockwell18, Brushes.Black, (RectangleF)EDITOR_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("E         ", Rockwell18, Brushes.DarkCyan, (RectangleF)EDITOR_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("Quit", Rockwell16, Brushes.Black, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("Q     ", Rockwell16, Brushes.DarkCyan, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
             }
             if (ShowDI)
                 #region Debug Information
@@ -589,7 +703,7 @@ namespace _010216
             {
                 g.DrawString("Console: ", Verdana13, Brushes.Black, 3, 25);
                 g.DrawString(Console.getLog(), Verdana13, Brushes.Black, Console.getRegion().X + 3, Console.getRegion().Y);
-                g.DrawString(Console.getPrevString(), Verdana13, Brushes.Black, new Rectangle(100, 0, 423, 20), TextFormatCenter);
+                g.DrawString(Console.getPrevString(), Verdana13, Brushes.Black, new Rectangle(100, 0, 423, 20), TextFormatCenterHor);
                 g.DrawString(Console.getString(), Verdana13, Brushes.Black, new Rectangle(81, 25, 460, 20));
                 g.DrawImage(iConsole, Console.getRegion());
             }
