@@ -148,13 +148,19 @@
   <data name="glassPanelCornersFill" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\glassPanelCornersFill.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="GreenButton" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\GreenButton.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
-  </data>
   <data name="menuPanel" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\menuPanel.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="YellowButton" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\YellowButton.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  <data name="BlueButtonEmpty" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BlueButtonEmpty.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="BlueButtonFill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\BlueButtonFill.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="GreenButtonEmpty" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GreenButtonEmpty.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="GreenButtonFill" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\GreenButtonFill.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
 </root>

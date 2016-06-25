@@ -49,14 +49,17 @@ namespace _010216
         static readonly Random
             getRandom = new Random(DateTime.Now.Millisecond);
         static readonly Font
-            Rockwell16 = new Font("Rockwell", 16),
-            Rockwell18 = new Font("Rockwell", 18),
+            Rockwell16 = new Font("Rockwell", 16, FontStyle.Bold),
+            Rockwell18 = new Font("Rockwell", 18, FontStyle.Bold),
             Verdana13 = new Font("Verdana", 13);
         static readonly StringFormat
             TextFormatCenterAll = new StringFormat(),
             TextFormatCenterHor = new StringFormat();
         static readonly Pen
             RayPen = new Pen(Color.Red, 6);
+        static readonly SolidBrush
+            BlueButtonBrush = new SolidBrush(Color.FromArgb(36, 156, 207)),
+            GreenButtonBrush = new SolidBrush(Color.FromArgb(111, 195, 73));
         static readonly Image
             iBlockNormal = Properties.Resources.BlockMetal,
             iBlockSolid = Properties.Resources.BlockStone,
@@ -68,8 +71,10 @@ namespace _010216
             iPlaceForBlock = Properties.Resources.BlockCanPlace,
             iEmptySpace = Properties.Resources.BlockCantPlace,
             iMenuPanel = Properties.Resources.menuPanel,
-            iGreenButton = Properties.Resources.GreenButton,
-            iYellowButton = Properties.Resources.YellowButton,
+            iGreenButton = Properties.Resources.GreenButtonFill,
+            iBlueButton = Properties.Resources.BlueButtonFill,
+            iTransGreenButton = Properties.Resources.GreenButtonEmpty,
+            iTransBlueButton = Properties.Resources.BlueButtonEmpty,
             iConsole = Properties.Resources.glassPanelConsole;
         static readonly Size
             Resolution = Screen.PrimaryScreen.Bounds.Size;
@@ -80,7 +85,8 @@ namespace _010216
             CONTINUE_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 25, MENU_RECTANGLE.Y + 25, 150, 50),
             EDITOR_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 40, MENU_RECTANGLE.Y + 105, 120, 40),
             EXIT_BUTTON_RECTANGLE = new Rectangle(MENU_RECTANGLE.X + 55, MENU_RECTANGLE.Y + 250, 90, 30),
-            GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, 0 + (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100);
+            GAME_RECTANGLE = new Rectangle((Resolution.Width - GAME_WIDTH * 100) / 2, 0 + (Resolution.Height - GAME_HEIGHT * 100) / 2, GAME_WIDTH * 100, GAME_HEIGHT * 100),
+            RETURNFROMEDIT_BUTTON_RECTANGLE = new Rectangle(GAME_RECTANGLE.Right - 150, GAME_RECTANGLE.Y - 50, 150, 50);
         static readonly Point[]
             lStartPoint = new Point[LEVELS]
             {
@@ -119,6 +125,10 @@ namespace _010216
             public BLOCK_TYPES getType()
             {
                 return Type;
+            }
+            public void setType(BLOCK_TYPES _Type)
+            {
+                Type = _Type;
             }
             public void setRectangle(Rectangle _Rectangle)
             {
@@ -298,6 +308,8 @@ namespace _010216
             SolidBlocks = new Region();
         static string 
             QuartzFont = "Quartz MS";
+        static Boolean[]
+            ButtonsHover = new Boolean[3] { false, false, false };
         static Boolean
             ChangingLevel = false,
             ShowDI = false;
@@ -342,6 +354,7 @@ namespace _010216
             }
         };
         static int[,] EditorMap = new int[GAME_HEIGHT, GAME_WIDTH];
+        Block ContextBlock;
         static Point
             ContextPosition = new Point(),
             EditorStartPoint = new Point(),
@@ -443,7 +456,11 @@ namespace _010216
             EditorEndPoint = lEndPoint[CurrentLevel];
             for (int q = 0; q < GAME_HEIGHT; ++q)
                 for (int w = 0; w < GAME_WIDTH; ++w)
-                    EditorMap[q, w] = Map[CurrentLevel, q, w];
+                    if (Map[CurrentLevel, q, w] != 5)
+                        EditorMap[q, w] = Map[CurrentLevel, q, w];
+                    else
+                        EditorMap[q, w] = -5;
+            Setup();
         }
 
         void pKeyDown(object sender, KeyEventArgs e)
@@ -509,41 +526,83 @@ namespace _010216
         void pMouseDown(object sender, MouseEventArgs e)
         {
             if (GameState == GAME_STATES.EDITOR)
-            {
-                StartMoveBlocks(e);
-                if (e.Button == MouseButtons.Right)
+                if (e.Button == MouseButtons.Right && GAME_RECTANGLE.Contains(e.Location))
                 {
                     Boolean BlockHited = false;
                     foreach (Block TB in Blocks)
                         if (TB.getRectangle().Contains(e.Location))
                         {
-                            EditorContextMenu = CONTEXT_MENUS.REMOVE;
+                            if (TB.getType() != BLOCK_TYPES.NOBLOCK)
+                                EditorContextMenu = CONTEXT_MENUS.REMOVE;
+                            else
+                                EditorContextMenu = CONTEXT_MENUS.CREATEorFILL;
+                            ContextBlock = TB;
                             BlockHited = true;
                             break;
                         }
                     if (!BlockHited)
                         if (EmptySpace.IsVisible(e.Location))
-                            EditorContextMenu = CONTEXT_MENUS.CREATEorFILL;
-                        else
                             EditorContextMenu = CONTEXT_MENUS.CREATEorSETEMPTY;
                     if (EditorContextMenu != CONTEXT_MENUS.NONE)
                         ContextPosition = e.Location;
                 }
-            }
-            else
-                if (GameState == GAME_STATES.ACTIVE)
-                    StartMoveBlocks(e);
+                else
+                {
+                    switch (EditorContextMenu)
+                    {
+                        case CONTEXT_MENUS.REMOVE:
+                            if (new Rectangle(ContextPosition, new Size(60, 15)).Contains(e.Location))
+                            {
+                                EmptySpace.Union(ContextBlock.getRectangle());
+                                Blocks.Remove(ContextBlock);
+                            }
+                            EditorContextMenu = CONTEXT_MENUS.NONE;
+                            break;
+                        case CONTEXT_MENUS.CREATEorFILL:
+                            if (new Rectangle(ContextPosition, new Size(60, 15)).Contains(e.Location))
+                            {
+                                EditorContextMenu = CONTEXT_MENUS.BLOCKTYPES;
+                            }
+                            if (new Rectangle(ContextPosition.X, ContextPosition.Y + 15, 60, 15).Contains(e.Location))
+                            {
+                                Blocks.Remove(ContextBlock);
+                                EmptySpace.Union(ContextBlock.getRectangle());
+                                EditorContextMenu = CONTEXT_MENUS.NONE;
+                            }
+                            break;
+                        case CONTEXT_MENUS.CREATEorSETEMPTY:
+                            if (new Rectangle(ContextPosition, new Size(60, 15)).Contains(e.Location))
+                            {
+                                EditorContextMenu = CONTEXT_MENUS.BLOCKTYPES;
+                            }
+                            if (new Rectangle(ContextPosition.X, ContextPosition.Y + 15, 60, 15).Contains(e.Location))
+                            {
+                                Blocks.Add(new Block(ContextBlock.getRectangle(), BLOCK_TYPES.NOBLOCK));
+                                GameRegion.Exclude(ContextBlock.getRectangle());
+                                EditorContextMenu = CONTEXT_MENUS.NONE;
+                            }
+                            break;
+                        case CONTEXT_MENUS.BLOCKTYPES:
+
+                            EditorContextMenu = CONTEXT_MENUS.NONE;
+                            break;
+                    }
+                    if (EditorContextMenu != CONTEXT_MENUS.BLOCKTYPES)
+                        EditorContextMenu = CONTEXT_MENUS.NONE;
+                }
+            StartMoveBlocks(e);
         }
 
         static void StartMoveBlocks(MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Left)
-                foreach (Block TB in Blocks)
-                    if ((TB.getType() == BLOCK_TYPES.NORMAL || GameState == GAME_STATES.EDITOR) && TB.getRectangle().Contains(e.Location))
-                    {
-                        SelectedBlock = Blocks.IndexOf(TB);
-                        MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
-                    }
+            if (GameState == GAME_STATES.ACTIVE || GameState == GAME_STATES.EDITOR)
+                if (e.Button == MouseButtons.Left)
+                    foreach (Block TB in Blocks)
+                        if ((TB.getType() == BLOCK_TYPES.NORMAL || GameState == GAME_STATES.EDITOR) && TB.getRectangle().Contains(e.Location) && TB.getType() != BLOCK_TYPES.NOBLOCK)
+                        {
+                            SelectedBlock = Blocks.IndexOf(TB);
+                            MoveStartPosition = new Point(TB.getRectangle().X, TB.getRectangle().Y);
+                        }
         }
 
         void pMouseUp(object sender, MouseEventArgs e)
@@ -583,6 +642,11 @@ namespace _010216
         {
             switch (GameState)
             {
+                case GAME_STATES.MENU:
+                    ButtonsHover[0] = CONTINUE_BUTTON_RECTANGLE.Contains(e.Location);
+                    ButtonsHover[1] = EDITOR_BUTTON_RECTANGLE.Contains(e.Location);
+                    ButtonsHover[2] = EXIT_BUTTON_RECTANGLE.Contains(e.Location);
+                    break;
                 case GAME_STATES.EDITOR:
                     goto case GAME_STATES.ACTIVE;
                 case GAME_STATES.ACTIVE:
@@ -635,9 +699,10 @@ namespace _010216
         void pDraw(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             for (int q = 0; q < GAME_HEIGHT; ++q)
                 for (int w = 0; w < GAME_WIDTH; ++w)
-                    g.DrawImage(Map[CurrentLevel, q, w] != 5 ? iPlaceForBlock : iEmptySpace, GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q);
+                    g.DrawImage((GameState != GAME_STATES.EDITOR ? Map[CurrentLevel, q, w] : EditorMap[q, w]) != 5 || EditorMap[q, w] != -5 ? iPlaceForBlock : iEmptySpace, GAME_RECTANGLE.X + 100 * w, GAME_RECTANGLE.Y + 100 * q);
             foreach (Block TB in Blocks)
                 switch (TB.getType())
                 {
@@ -656,11 +721,53 @@ namespace _010216
                     g.DrawImage(Blocks[SelectedBlock].getType() == BLOCK_TYPES.NORMAL ? iBlockNormal : iBlockSolid, Blocks[SelectedBlock].getRectangle());
             }
             else
+            {
                 g.FillEllipse(Brushes.Red, lStartPoint[CurrentLevel].X - 10, lStartPoint[CurrentLevel].Y - 10, 20, 20);
+                g.DrawImage(iGreenButton, RETURNFROMEDIT_BUTTON_RECTANGLE);
+                g.DrawString("Back to game", Rockwell16, Brushes.Black, (RectangleF)RETURNFROMEDIT_BUTTON_RECTANGLE, TextFormatCenterAll);
+            }
             g.DrawImage(ChangingLevel ? iEndLaser : iEnd, lEndPoint[CurrentLevel]);
             if (GameState == GAME_STATES.EDITOR && EditorContextMenu != CONTEXT_MENUS.NONE)
             {
-
+                switch (EditorContextMenu)
+                {
+                    case CONTEXT_MENUS.REMOVE:
+                        Rectangle Rect = new Rectangle(ContextPosition.X, ContextPosition.Y, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Remove", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        break;
+                    case CONTEXT_MENUS.CREATEorFILL:
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Create", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y + 15, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Fill", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        break;
+                    case CONTEXT_MENUS.CREATEorSETEMPTY:
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Create", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y + 15, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Set empty", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        break;
+                    case CONTEXT_MENUS.BLOCKTYPES:
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Normal", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        Rect = new Rectangle(ContextPosition.X, ContextPosition.Y + 15, 60, 15);
+                        g.FillRectangle(new SolidBrush(Color.FromArgb(64, 64, 64)), Rect);
+                        g.DrawRectangle(Pens.DarkGray, Rect);
+                        g.DrawString("Solid", new Font("Tahoma", 9), Brushes.White, (RectangleF)Rect, TextFormatCenterAll);
+                        break;
+                }
             }
             if (ChangingLevel)
             {
@@ -675,15 +782,15 @@ namespace _010216
             {
                 g.FillRectangle(new SolidBrush(Color.FromArgb(192, 0, 0, 0)), 0, 0, Resolution.Width, Resolution.Height);
                 g.DrawImage(iMenuPanel, MENU_RECTANGLE);
-                g.DrawImage(iYellowButton, EXIT_BUTTON_RECTANGLE);
-                g.DrawImage(iYellowButton, EDITOR_BUTTON_RECTANGLE);
-                g.DrawImage(iGreenButton, CONTINUE_BUTTON_RECTANGLE);
-                g.DrawString("Continue", Rockwell18, Brushes.Black, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
-                g.DrawString("C              ", Rockwell18, Brushes.DarkCyan, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
-                g.DrawString("Editor", Rockwell18, Brushes.Black, (RectangleF)EDITOR_BUTTON_RECTANGLE, TextFormatCenterAll);
-                g.DrawString("E         ", Rockwell18, Brushes.DarkCyan, (RectangleF)EDITOR_BUTTON_RECTANGLE, TextFormatCenterAll);
-                g.DrawString("Quit", Rockwell16, Brushes.Black, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
-                g.DrawString("Q     ", Rockwell16, Brushes.DarkCyan, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawImage(ButtonsHover[0] ? iGreenButton : iTransGreenButton, CONTINUE_BUTTON_RECTANGLE);
+                g.DrawImage(ButtonsHover[1] ? iBlueButton : iTransBlueButton, EDITOR_BUTTON_RECTANGLE);
+                g.DrawImage(ButtonsHover[2] ? iBlueButton : iTransBlueButton, EXIT_BUTTON_RECTANGLE);
+                g.DrawString("Continue", Rockwell18, !ButtonsHover[0] ? GreenButtonBrush : Brushes.White, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
+                //g.DrawString("C               ", Rockwell18, Brushes.Orange, (RectangleF)CONTINUE_BUTTON_RECTANGLE, TextFormatCenterAll);
+                g.DrawString("Editor", Rockwell18, !ButtonsHover[1] ? BlueButtonBrush : Brushes.White, (RectangleF)EDITOR_BUTTON_RECTANGLE, TextFormatCenterAll);
+                //g.DrawString("E          ", Rockwell18, Brushes.Orange, (RectangleF)(EDITOR_BUTTON_RECTANGLE), TextFormatCenterAll);
+                g.DrawString("Quit", Rockwell16, !ButtonsHover[2] ? BlueButtonBrush : Brushes.White, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
+                //g.DrawString("Q     ", Rockwell16, Brushes.Orange, (RectangleF)EXIT_BUTTON_RECTANGLE, TextFormatCenterAll);
             }
             if (ShowDI)
                 #region Debug Information

@@ -113,6 +113,26 @@ namespace _010216.Properties {
         /// <summary>
         ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap BlueButtonEmpty {
+            get {
+                object obj = ResourceManager.GetObject("BlueButtonEmpty", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap BlueButtonFill {
+            get {
+                object obj = ResourceManager.GetObject("BlueButtonFill", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap End {
             get {
                 object obj = ResourceManager.GetObject("End", resourceCulture);
@@ -163,9 +183,19 @@ namespace _010216.Properties {
         /// <summary>
         ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
         /// </summary>
-        internal static System.Drawing.Bitmap GreenButton {
+        internal static System.Drawing.Bitmap GreenButtonEmpty {
             get {
-                object obj = ResourceManager.GetObject("GreenButton", resourceCulture);
+                object obj = ResourceManager.GetObject("GreenButtonEmpty", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap GreenButtonFill {
+            get {
+                object obj = ResourceManager.GetObject("GreenButtonFill", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
@@ -176,16 +206,6 @@ namespace _010216.Properties {
         internal static System.Drawing.Bitmap menuPanel {
             get {
                 object obj = ResourceManager.GetObject("menuPanel", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Поиск локализованного ресурса типа System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap YellowButton {
-            get {
-                object obj = ResourceManager.GetObject("YellowButton", resourceCulture);
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
